@@ -8,8 +8,9 @@ terminal emulator. The terminal handling library nchanterm is included with
 the source - thus no further dependencies are neccesary.
 
 To build for arduino, sac.c and sac.h needs to be added to a sketch - and the
-following arduino libraries are neccesary, and the ARDUINO_MODE define at the
-top must be changed to 1.
+ARDUINO_MODE define at the top must be changed to 1.
 
-TimerThree
-SerialLCD
+Sac depends on the following arduino libraries:
+
+TimerThree, EEPROM, SerialLCD and Software Serial.
+
