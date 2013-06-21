@@ -102,9 +102,9 @@ typedef struct TranslatedString {
 TranslatedString string_db[]={
   /* for languages missing translations, english will be used instead */
   {{"",                "",               ""}},
-  {{"WA",              "VA",             "WA"}},
+  {{"WA",              "VA",             "CA"}},
   {{"E ",              "E ",             "E "}},
-  {{"S ",              "S ",             "T "}},
+  {{"S ",              "S ",             "S "}},
   {{"H ",              "H ",             "H "}},
   {{"L ",              "L ",             "L "}},
   {{"A ",              "A ",             "A "}},
@@ -564,7 +564,7 @@ MenuItem main_menu[] = {
   {S_RESET, S_CONFIG,                RESET_SETTINGS,      0},
   {S_LANGUAGE, 0,                    LANGUAGE,            &active_language},
   {S_TIME, 0,                        TIME,                &minutes},
-  {S_LOG, 0,                         SUBMENU,             &log_menu},
+/*{S_LOG, 0,                         SUBMENU,             &log_menu},*/
   {0}
 };
 
