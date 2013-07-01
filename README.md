@@ -7,6 +7,7 @@ This code is for the following open source hardware device, known as SAC:
 	http://sacultivo.com/productos/s-a-c/electronica/unidad-de-control/
 
 If you are unfamilar with Git, this is a terminal command to download the code:
+
 	git clone https://github.com/Artesanos/sac.git
 
 As shipped the project builds a simulator of the SAC for running inside a
