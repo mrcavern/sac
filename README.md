@@ -19,6 +19,7 @@ libraries and integrated development environment. If you are unfamiliar,
 here are some ways to download it:
 
 on debian commandline
+
 	apt-get install arduino
 
 on windows, surf to http://arduino.cc/en/Main/Software
@@ -37,8 +38,11 @@ Click on the button to make a new tab in the arduino ide, and for the name of th
 Copy&paste the code from sac.h into this new tab, and save it.
 
 To build for arduino, find this line in sac.c:
+
 	#define ARDUINO_MODE 0
+
 and change to this:
+
 	#define ARDUINO_MODE 1
 
 Sac depends on the following arduino libraries:
