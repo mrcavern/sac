@@ -1,4 +1,6 @@
-#define ARDUINO_MODE 0  /* toggle for use of simulator/actual code paths */
+#include "serLCD.h"
+
+#define ARDUINO_MODE 1  /* toggle for use of simulator/actual code paths */
 
 /* SAC - automated agriculture System http://sacultivo.com/
 
@@ -20,21 +22,31 @@ Written by Øyvind Kolås pippin@gimp.org in 2013, based around a core of
 sensor initialization and reading by by Andres Orencio Ramirez Perez
 andy@orencio.org
 
+Rev 2.0
+Adapted previous code with new SerLCD Library for using 20x4 displays, with newer functions to control
+LCD. Added new Menu's and removed some unused code for clearer comprehension.
+
+In future releases some new sensors will be added in addition to a hardware clock for simplifying all time
+functions and readings.
+
+Code adapted by David Cuevas <mr.cavern@gmail.com> with the support and collaboration of Victor Suarez <zerasul@gmail.com>
+and Adrian from Artesanos Industriales del Sur.
+
 */
 
-#define RELAY1_PIN   2
-#define RELAY2_PIN   3
+#define RELAY1_PIN   5
+#define RELAY2_PIN   6
 #define RELAY3_PIN   4
 
-#define BUTTON_UP_PIN    8
-#define BUTTON_ENTER_PIN 9
-#define BUTTON_DOWN_PIN 10
+#define BUTTON_UP_PIN    9
+#define BUTTON_ENTER_PIN 8
+#define BUTTON_DOWN_PIN 7
 
 #define LOOP_DELAY    500
 #define MENU_SPEEDUP  3
 #define MENU_TIMEOUT  120
 
-#define SOIL_MOISTURE_POWER_PIN 7
+#define SOIL_MOISTURE_POWER_PIN 3
 
 #include "sac.h"
 #include <string.h>
@@ -81,6 +93,7 @@ enum {
   S_CONFIG,
   S_RANGE,
   S_LOG,
+  MIN,
 };
 
 typedef struct {
@@ -101,50 +114,50 @@ typedef struct TranslatedString {
 
 TranslatedString string_db[]={
   /* for languages missing translations, english will be used instead */
-  {{"",                "",               ""}},
-  {{"WA",              "VA",             "CA"}},
-  {{"E ",              "E ",             "E "}},
-  {{"S ",              "S ",             "S "}},
-  {{"H ",              "H ",             "H "}},
-  {{"L ",              "L ",             "L "}},
-  {{"A ",              "A ",             "A "}},
-  {{"PU ",             "PU ",            "PU "}},
-  {{"Language",        "Spraak",         "Idioma",            "Sprache"   }},
-  {{"English",         "Norsk",          "Espanol",           "Deutsch"}},
-  {{"<enabled>",       "<aktivert>",     "<activar>",         "<aktiviert>"}},
-  {{"<disabled>",      "<deaktivert>"    "<inhabilitado>",    "<deaktiviert>"}},
-  {{"Time",            "Klokken",        "Hora",              "Uhr"}},
-  {{"Soil moisture",   "Jordfuktighet",  "Humedad Suelo",     "Bodenfeuchte"}},
-  {{"CalibrateS.Moist","Kalibr. fukt.s.","Calibraction Sat.", "Kalibr.Feuct.S"}},
-  {{"off",             "av",             "apagado",           "aus"}},
-  {{"irrigation",      "vanning",        "riego",             "bewasserung"}},
-  {{"heating",         "oppvarming",     "calefaccion",       "heizung"}},
-  {{"cooling",         "nedkj0ling",     "refrigeraction",    "Kuhlung"}},
-  {{"light",           "lys",            "iluminacion",       "Licht"}},
-  {{"air extraction",  "avtrekk",        "extraccion hum.",   "Entluftung"}},
-  {{"humidifier",      "fukter",         "huminifaicaion",    "Luftbefeuchter"}},
-  {{"alarm",           "alarm",          "alarma",            "Alarm"}},
-  {{"Output 1",        "Utgang 1",       "Salida 1",          "Ausgang 1"}},
-  {{"Output 2",        "Utgang 2",       "Salida 2",          "Ausgang 2"}},
-  {{"Output 3",        "Utgang 3",       "Salida 3",          "Ausgang 3"}},
-  {{"Air humidity",    "luftfuktighet",  "Humedad Aire",      "Luftfeuchtigkeit"}},
-  {{"Temperature",     "Temperatur",     "Temperatura",       "Temperatur"}},
+  {{"","",""}},
+  {{"  F.C."",C.C."}},
+  {{"E ","E "}},
+  {{"SOIL","HSO:"}},
+  {{"H ","H "," "}},
+  {{"L ","L ","L"}},
+  {{"A ","A ","A"}},
+  {{"PU ","RIEGO"}},
+  {{"LANGUAGE","IDIOMA"}},
+  {{"ENGLISH",         "ESPANOL"}},
+  {{"<enabled>",       "<activar>"}},
+  {{"<disabled>",      "<inhabilitado>"}},
+  {{"TIME",            "HORA"}},
+  {{"SOIL MOISTURE",   "HUMEDAD SUELO"}},
+  {{"CALIBRATE SAT.","CALIBRACION SAT."}},
+  {{"OFF",             "APAGADO"}},
+  {{"WATERING",      "RIEGO"}},
+  {{"HEATING",         "CALEFACCION",}},
+  {{"COOLING",         "REFRIGERACION"}},
+  {{"LIGHT",           "ILUMINACION"}},
+  {{"AIR EXTRACTION",  "EXTRAC.HUMEDAD"}},
+  {{"HUMIDIFIER",      "HUMIDIFICACION"}},
+  {{"alarm",           "Alarm"}},
+  {{"OUTPUT 1",        "SALIDA 1"}},
+  {{"OUTPUT 2",        "SALIDA 2"}},
+  {{"OUTPUT 3",        "SALIDA 3"}},
+  {{"AIR HUMIDITY",    "HUMEDAD AIRE"}},
+  {{"TEMPERATURE",     "TEMPERATURA"}},
 
-  {{"Irrigation",      "Vannings ",      "Riego",             "Bewasserung"}},
-  {{"length (sec): ",  "tid (sek): ",    "Durante(s):",       "Zeit (sek):"}},
+  {{"WATERING",      "RIEGO"}},
+  {{"CICLES (sec):",  "CICLOS (seg):"}},
 
-  {{"Return to",       "Returner til",   "returno",           "Rukkehr zum"}},
-  {{"main menu",       "hovedmenyen",    "menu meyor",        "Hauptmenu"}},
-  {{"Setup...",        "Innstillinger...", "Configuracion..", "Konfiguration"}},
-  {{"Output",          "Utgang",         "Salida",            "Ausgang"}},
-  {{"Reset",           "Nullstill",      NULL,                "Zurucksetzen"}},
-  {{"On",              "på",             "encendido",         "angestellt"}},
-  {{"start",           "start",          "comienza",          "ausgestellt"}},
-  {{"duration",        "tid",            "duracion",          "Dauer"}},
-  {{"configuration",   "konfigurasjon",  "configuracion",     "konfiguration"}},
+  {{"RETURN TO",       "VOLVER"}},
+  {{"MAIN MENU",       "MENU PRINCIPAL"}},
+  {{"Setup...",        "Configuracion.."}},
+  {{"OUTPUTS",          "SALIDAS"}},
+  {{"Reset",           "RESET"}},
+  {{"ON",              "ENCENDIDO"}},
+  {{"START",           "COMIENZA"}},
+  {{"DURATION",        "DURACION"}},
+  {{"CONFIGURATION",   "CONFIGURACION"}},
   {{"Hysteresis: ",  }},
   {{"Log"}},
-  {{NULL}}
+  {{"MIN:"}},  {{"MIN:"}},
 };
 
 int active_language = 0;
@@ -163,21 +176,24 @@ int   cached_water_level = 1;
 
 #if ARDUINO_MODE
 
-#include <TimerThree.h>
+
 #include <EEPROM.h>
-#include <SerialLCD.h>
+//#include <SerialLCD.h>
 #include <SoftwareSerial.h>
 // Pins for input/output to lcd
-SerialLCD slcd(11,12);
+serLCD seriallcd(11);
+//SoftwareSerial LCD(11,12); // RX, TX
 
 // Flag to detect when the lcd is initiazed.
 int lcd_initialized = 0;
 
 // Some special values for the lcd.
-#define SLCD_BACKLIGHT_OFF 0x80
-#define SLCD_BACKLIGHT_ON  0x81
-#define SLCD_POWER_OFF     0x82
-#define SLCD_POWER_ON      0x83
+//#define SLCD_BACKLIGHT_OFF 0x80
+//#define SLCD_BACKLIGHT_ON  0x81
+//#define SLCD_POWER_OFF     0x82
+//#define SLCD_POWER_ON      0x83
+
+
 
 // Pin for soil moisture sensor (MOISTURE).
 // http://www.seeedstudio.com/wiki/Grove_-_Moisture_Sensor
@@ -187,43 +203,43 @@ int lcd_initialized = 0;
 #define soil_moisture_MAX 80
 
 // Pin for air humdity and temperature sensor (AHTS).
-#define AHTS_PIN A0     
+#define AHTS_PIN A0    
 
 // Pin for water tank nivel sensor (WTS).
-#define WTS_PIN A1
+#define WTS_PIN A2
 
 #endif
 
 #if ARDUINO_MODE
 /* a small subset of commands we are using for driving the LCD */
 
-#define LCD_XY(u,v)     do{x=u+1,y=v+1;slcd.setCursor(u,v);}while(0)
-#define LCD_CLEAR()     do{slcd.clear();LCD_XY(0,0);}while(0)
-#define LCD_X()         (x-1)
-#define LCD_Y()         (y-1)
-#define LCD_PRINT(str)  do{slcd.print(str);x+=strlen(str);}while(0)
-#define LCD_PRINTN(no)  do{slcd.print((float)no, 0);slcd.print(" ");if(no<0)x++;x++;if(no>=10)x++;if(no>=100)x++;if(no>=1000)x++;if(no>=10000)x++;LCD_XY(LCD_X(),LCD_Y());}while(0)
-#define LCD_FLUSH()     do{}while(0)
-
-#define LCD_BLINK(str)  do{int i;if (ticks%2){LCD_PRINT(str);}else{for (i=0;i<strlen(str);i++)LCD_PRINT(" ");};}while(0)
-#define LCD_BLINKN(no)  do{if (ticks%2){LCD_PRINTN(no);}else{if(no>=10)LCD_PRINT(" ");if (no>=100)LCD_PRINT(" ");LCD_PRINT(" ");};}while(0)
-
+//#define LCD.setCursor(u,v)     do{x=u+1,y=v+1;LCD.setCursor(u,v);}while(0)
+//#define clearScreen()     do{LCD.clear();LCD.setCursor(0,0);}while(0)
+//#define LCD_X()         (x-1)
+//#define LCD_Y()         (y-1)
+//#define LCD.print(str)  do{seriallcd.print(str);x+=strlen(str);}while(0)
+//#define LCD.print(no)  do{seriallcd.print((float)no, 0);seriallcd.print(" ");if(no<0)x++;x++;if(no>=10)x++;if(no>=100)x++;if(no>=1000)x++;if(no>=10000)x++;LCD.setCursor(LCD_X(),LCD_Y());}while(0)
+//#define clearScreen()()     do{}while(0)
+//
+//#define LCD.print(str)  do{int i;if (ticks%2){LCD.print(str);}else{for (i=0;i<strlen(str);i++)LCD.print(" ");};}while(0)
+//#define LCD.print(no)  do{if (ticks%2){LCD.print(no);}else{if(no>=10)LCD.print(" ");if (no>=100)LCD.print(" ");LCD.print(" ");};}while(0)
+//
 #define EEPROM_write(pos,val) EEPROM.write(pos,val)
 #define EEPROM_read(pos)      EEPROM.read(pos)
-
-
-#else /* nchanterm equivalent codes to the slcd library */
-
-#define LCD_CLEAR()     do{nct_clear (term);x=1;y=1;}while(0)
-#define LCD_XY(u,v)     do{x=u+10;y=v+5;} while(0);
-#define LCD_X()         (x-10)
-#define LCD_Y()         (y-5)
-#define LCD_PRINT(str)  do{x+=nct_print (term, x, y, str, -1);}while(0)
-#define LCD_PRINTN(no)  do{char str[10];sprintf(str, "%.0f ", 1.0*(no));LCD_PRINT(str);LCD_XY(LCD_X()-1,LCD_Y());}while(0)
-#define LCD_FLUSH()     do{nct_flush (term);}while(0)
-
-#define LCD_BLINK(str) do{int i;if (ticks%2){LCD_PRINT(str);}else{for (i=0;i<strlen(str);i++)LCD_PRINT(" ");};}while(0)
-#define LCD_BLINKN(no)  do{char str[10];sprintf(str, "%.0f ", 1.0*(no));LCD_BLINK(str);LCD_XY(LCD_X()-1,LCD_Y())}while(0)
+//
+//
+//#else /* nchanterm equivalent codes to the seriallcd library */
+//
+//#define clearScreen()()     do{nct_clear (term);x=1;y=1;}while(0)
+//#define LCD.setCursor(u,v)     do{x=u+10;y=v+5;} while(0);
+//#define LCD_X()         (x-10)
+//#define LCD_Y()         (y-5)
+//#define LCD.print(str)  do{x+=nct_print (term, x, y, str, -1);}while(0)
+//#define LCD.print(no)  do{char str[10];sprintf(str, "%.0f ", 1.0*(no));LCD.print(str);LCD.setCursor(LCD_X()-1,LCD_Y());}while(0)
+//#define clearScreen()()     do{nct_flush (term);}while(0)
+//
+//#define LCD.print(str) do{int i;if (ticks%2){LCD.print(str);}else{for (i=0;i<strlen(str);i++)LCD.print(" ");};}while(0)
+//#define LCD.print(no)  do{char str[10];sprintf(str, "%.0f ", 1.0*(no));LCD.print(str);LCD.setCursor(LCD_X()-1,LCD_Y())}while(0)
 
 static unsigned char fakeEEPROM[512] = { 0, 0,
                                          0, 0, /* relay1 */
@@ -231,13 +247,155 @@ static unsigned char fakeEEPROM[512] = { 0, 0,
                                          0, 0, /* relay3 */
                                          0, 1  /* language */
 };
-
+#include <stdint.h>
 #define EEPROM_write(pos,val) do{fakeEEPROM[pos]=val;}while(0)
 #define EEPROM_read(pos)      fakeEEPROM[pos]
 
-#include <stdint.h>
+
 
 #endif
+
+
+//NUEVA LIBRERIA LCD CON FUNCIONES PREDEFINIDAS
+//
+#define LCD_SENDCOMMAND(command){seriallcd.print(0xFE); seriallcd.print(command); }
+#define LCD_SPECIALCOMMAND(scommand){seriallcd.print(0x7C); seriallcd.print(scommand); }
+//-------------------------------------------------------------------------------------------
+void clearScreen()
+{
+  //clears the screen, you will use this a lot!
+  LCD_SENDCOMMAND(0x01);
+
+}
+
+//-------------------------------------------------------------------------------------------
+void moveCursorRightOne()
+{
+  //moves the cursor right one space
+LCD_SENDCOMMAND(0x14);
+}
+//-------------------------------------------------------------------------------------------
+void moveCursorLeftOne()
+{
+  //moves the cursor left one space
+LCD_SENDCOMMAND(0x10);
+}
+//-------------------------------------------------------------------------------------------
+void scrollRight()
+{
+  //same as moveCursorRightOne
+LCD_SENDCOMMAND(0x1C);
+}
+//-------------------------------------------------------------------------------------------
+void scrollLeft()
+{
+  //same as moveCursorLeftOne
+LCD_SENDCOMMAND(0x18);
+}
+//-------------------------------------------------------------------------------------------
+void turnDisplayOff()
+{
+  //this tunrs the display off, but leaves the backlight on. 
+LCD_SENDCOMMAND(0x08);
+}
+//-------------------------------------------------------------------------------------------
+void turnDisplayOn()
+{
+  //this turns the display back ON
+LCD_SENDCOMMAND(0x0C);
+}
+//-------------------------------------------------------------------------------------------
+void underlineCursorOn()
+{
+  //turns the underline cursor on
+LCD_SENDCOMMAND(0x0E);
+}
+//-------------------------------------------------------------------------------------------
+/*void underlineCursorOff()
+{
+  //turns the underline cursor off
+  LCD.print(0xFE); //command flag
+  LCD.print(12); // 0x0C
+}*/
+//-------------------------------------------------------------------------------------------
+void boxCursorOn()
+{
+  //this turns the box cursor on
+LCD_SENDCOMMAND(0x0D);
+}
+//-------------------------------------------------------------------------------------------
+/*void boxCursorOff()
+{
+  //this turns the box cursor off
+  LCD.print(0xFE); //command flag
+  LCD.print(12); // 0x0C
+}*/
+//-------------------------------------------------------------------------------------------
+void toggleSplash()
+{
+  //this toggles the spalsh screenif off send this to turn onif on send this to turn off
+LCD_SPECIALCOMMAND(0x09);
+}
+//-------------------------------------------------------------------------------------------
+int backlight(int brightness)// 128 = OFF, 157 = Fully ON, everything inbetween = varied brightnbess 
+{
+  //this function takes an int between 128-157 and turns the backlight on accordingly
+LCD_SPECIALCOMMAND(brightness);
+}
+
+//-------------------------------------------------------------------------------------------
+void counter()
+{
+  //this function prints a simple counter that counts to 10
+  clearScreen();
+  for(int i = 0; i <= 10; i++)
+  {
+    seriallcd.print("Counter = ");
+    seriallcd.print(i, DEC);
+    delay(500);
+    clearScreen();
+  }
+}
+//-------------------------------------------------------------------------------------------
+void tempAndHumidity()
+{
+  //this function shows how you could read the data from a temerature and humidity 
+  //sensro and then print that data to the SerLCD.
+  
+  //these could be varaibles instead of static numbers 
+  float tempF = 77.0; 
+  float tempC = 25.0;
+  float humidity = 67.0;
+  
+  clearScreen();
+  seriallcd.setCursor(0,1);
+  seriallcd.print(" Temp = ");
+  seriallcd.print((long)tempF, DEC);
+  seriallcd.print("F ");
+  seriallcd.print((long)tempC, DEC);
+  seriallcd.print("C");
+  seriallcd.setCursor(1,0);
+  seriallcd.print(" Humidity = ");
+  seriallcd.print((long)humidity, DEC); 
+  seriallcd.print("%");
+  delay(2500);
+}
+//-------------------------------------------------------------------------------------------
+void backlight()
+{
+  //this function shows the different brightnesses to which the backlight can be set 
+  clearScreen();
+  for(int i = 128; i < 158; i+=2)// 128-157 are the levels from off to full brightness
+  {
+    backlight(i);
+    delay(100);
+    seriallcd.print("Backlight = ");
+    seriallcd.print(i, DEC);
+    delay(500);
+    clearScreen();
+  }
+}
+
 
 /* returns a translated string; if no translation found - return the original
  * string.
@@ -270,9 +428,9 @@ void update_time_tick (void)
   ticks ++;
   if (ticks % 60 == 0)
     mticks ++;
-  if (1.0 * ticks >= MIDNIGHT * 60) 
+  if (1.0 * ticks >= MIDNIGHT * 60)
     ticks = 0;
-  if (1.0 * mticks >= MIDNIGHT) 
+  if (1.0 * mticks >= MIDNIGHT)
     mticks = 0;
 }
 
@@ -365,33 +523,28 @@ void setup_arduino (void)
   pinMode(RELAY1_PIN, OUTPUT);
   pinMode(RELAY2_PIN, OUTPUT);
   pinMode(RELAY3_PIN, OUTPUT);
-
+  
   pinMode(SOIL_MOISTURE_POWER_PIN, OUTPUT);
 
   pinMode(BUTTON_UP_PIN, INPUT);
   pinMode(BUTTON_ENTER_PIN, INPUT);
   pinMode(BUTTON_DOWN_PIN, INPUT);
-
-  slcd.begin();
-  slcd.write(SLCD_POWER_ON);
-  slcd.write(SLCD_BACKLIGHT_ON);
-
-  Timer3.initialize(1000000);
-  Timer3.attachInterrupt (update_time_tick);
+ 
+  seriallcd.display();
 }
 
-#else
-#include <string.h> // strcmp 
-#include <stdio.h>  /* sprintf */
-#include "nchanterm.h"
-#include <unistd.h>
-
-#define delay(foo)              usleep(foo*1000)
-#define delayMicroseconds(foo)  usleep(foo)
-
-Nchanterm *term;
-int main_quit = 0;
-#define nchant_delay   10  /* timeout for button presses */
+//#else
+//#include <string.h> // strcmp
+//#include <stdio.h>  /* sprintf */
+//#include "nchanterm.h"
+//#include <unistd.h>
+//
+//#define delay(foo)              usleep(foo*1000)
+//#define delayMicroseconds(foo)  usleep(foo)
+//
+//Nchanterm *term;
+//int main_quit = 0;
+//#define nchant_delay   10  /* timeout for button presses */
 
 #endif
 
@@ -400,11 +553,11 @@ float moisture_read ();
 enum {
   DISCONNECTED,
   IRRIGATION,
-  LIGHT,
-  VENTILATION,
   HUMIDIFIER,
+  VENTILATION,
   HEATING,
   COOLING,
+    LIGHT,
   ALARM,
   ON
 };
@@ -412,13 +565,15 @@ enum {
 int roles[] = {
   S_DISCONNECTED,
   S_IRRIGATION,
-  S_LIGHT,
-  S_VENTILATION,
   S_HUMIDIFIER,
+  S_VENTILATION,
   S_HEATING,
   S_COOLING,
-  S_ALARM,
-  S_ON
+  S_LIGHT,
+ 
+   
+/*  S_ALARM,*/
+/*  S_ON*/
 };
 #define MOISTURE_SMOOTHING  85
 
@@ -437,7 +592,7 @@ int   relay1_role = 0;
 int   relay2_role = 0;
 int   relay3_role = 0;
 int   is_editing  = 0;
-int   is_blink    = 0;
+int   is_print    = 0;
 
 Relay *find_relay (int role);
 
@@ -508,17 +663,17 @@ MenuItem log_menu[] =
 
 MenuItem main_menu[] = {
   {S_A, 0,                           STATUS,              (void*)0},
+  {S_RELAYS, S_CONFIG,               SUBMENU,             &relay_menu},
   {S_SOIL_MOISTURE, 0,               NUMBER,              &moisture_target},
+  {S_IRRIGATION_CYCLE, S_LENGTH_SEC, NUMBER,              &pump_cycle_length},
+  {S_CALIBRATE_MOIST, 0,             SOIL_CALIBRATE,      &moisture_calib}, 
   {S_AIR_HUMIDITY, 0,                NUMBER,              &humidity_target},
   {S_AIR_TEMPERATURE, 0,             NUMBER,              &temperature_target},
-  {S_CALIBRATE_MOIST, 0,             SOIL_CALIBRATE,      &moisture_calib},
-  {S_IRRIGATION_CYCLE, S_LENGTH_SEC, NUMBER,              &pump_cycle_length},
   {S_LIGHT,  S_START,                TIME,                &lights_start[0]},
-  {S_LIGHT,  S_DURATION,             TIME,                &lights_duration[0]},
-  {S_RELAYS, S_CONFIG,               SUBMENU,             &relay_menu},
-  {S_RESET, S_CONFIG,                RESET_SETTINGS,      0},
-  {S_LANGUAGE, 0,                    LANGUAGE,            &active_language},
+  {S_LIGHT,  S_DURATION,             TIME,                &lights_duration[0]}, 
   {S_TIME, 0,                        TIME,                &minutes},
+  {S_LANGUAGE, 0,                    LANGUAGE,            &active_language},  
+/*{S_RESET, S_CONFIG,                RESET_SETTINGS,      0},*/
 /*{S_LOG, 0,                         SUBMENU,             &log_menu},*/
   {0}
 };
@@ -545,14 +700,14 @@ void enter_menu (MenuItem *new_menu)
   menu_depth++;
   menu = new_menu;
   menu_active = 0;
-  LCD_CLEAR();
+  clearScreen();
 }
 
 void return_home (void)
 {
   if (menu == main_menu && menu_active == 0)
     return;
-  LCD_CLEAR();
+  clearScreen();
   menu = main_menu;
   menu_active = 0;
 }
@@ -562,7 +717,7 @@ void go_back (void)
   menu_depth--;
   menu = prev_menu[menu_depth];
   menu_active = prev_menu_active[menu_depth];
-  LCD_CLEAR();
+  clearScreen();
 }
 
 void store_settings (ConfigItem *menu)
@@ -650,7 +805,7 @@ void reset_settings (ConfigItem *menu)
            *sval = menu[i].default_value;
          }
        else
-         { 
+         {
            int *ival = (int*)menu[i].data;
            *ival = menu[i].default_value;
          }
@@ -676,7 +831,7 @@ static int debounce_key (int pin, int *state)
 
   if (*state > 80) /* start repeating press once per cycle, after 5 cycles */
     ret=1;
-    
+   
   return ret;
 }
 
@@ -737,7 +892,7 @@ int get_event (void)
       main_quit = 1;
     }
   else if (!strcmp (event, "size-changed"))
-    nct_set_size (term, nct_sys_terminal_width (), 
+    nct_set_size (term, nct_sys_terminal_width (),
                   nct_sys_terminal_height ());
   else if (!strcmp (event, "control-l"))
     {
@@ -760,13 +915,17 @@ int message_ttl = 0;
 
 void message(char *line1, char *line2)
 {
-  LCD_CLEAR();
-  LCD_XY(0,0);
-  LCD_PRINT(line1);
-  LCD_XY(0,1);
+
+clearScreen();
+//  LCD.setCursor(0,0);
+seriallcd.setCursor(0,1);
+//  LCD.print(line1);
+seriallcd.print(line1);
+//  LCD.setCursor(0,1);
+seriallcd.setCursor(1,0);
   if (line2)
-    LCD_PRINT(line2);
-  LCD_FLUSH();
+    seriallcd.print(line2);
+  clearScreen();
   message_ttl = 3;
 }
 
@@ -794,27 +953,37 @@ void draw_status (int time,
                   int temperature,
                   int humidity)
 {
-  LCD_XY(11,0);
-  LCD_PRINT(translate(S_A));
-  LCD_PRINTN(humidity);
-  LCD_PRINT("%");
+  seriallcd.setCursor(6,0);
+/*LCD.print(translate(S_A));*/
+  seriallcd.print(temperature);
+  seriallcd.print("C");
+   
+//  LCD.setCursor(0, 1);
+  seriallcd.print(humidity);
+  seriallcd.print("% HR");
+  seriallcd.setCursor(0, 1);
+  seriallcd.print(translate(S_S));
+  seriallcd.print(moisture_target);
+  seriallcd.print("% ");
+  seriallcd.setCursor(8,1);
+  seriallcd.print(translate(MIN));
+  seriallcd.setCursor(16,1);
+  seriallcd.print("[");
+  seriallcd.setCursor(18,1);
+  seriallcd.print(moisture);
+  seriallcd.setCursor(19,1);
+  seriallcd.print("]");
+   
 
-  LCD_XY(6, 0);
-  LCD_PRINTN(temperature);
-  LCD_PRINT("C");
-
-  LCD_XY(11, 1);
-  LCD_PRINT(translate(S_S));
-  LCD_PRINTN(moisture);
-  LCD_PRINT("%");
-
+ 
+ 
   {
     Relay *light = find_relay (LIGHT);
     if (light)
     {
-      LCD_XY(6, 1);
+      seriallcd.setCursor(6, 1);
       if (light->state == RELAY_ON)
-        LCD_PRINT(translate(S_L));
+        seriallcd.print(translate(S_L));
     }
   }
 
@@ -823,15 +992,15 @@ void draw_status (int time,
     Relay *cooling = find_relay (COOLING);
     if (heating)
     {
-      LCD_XY(8, 1);
+      seriallcd.setCursor(8, 1);
       if (heating->state == RELAY_ON)
-        LCD_PRINT("+");
+        seriallcd.print("+");
       else
         {
           if (cooling && cooling->state == RELAY_ON)
-            LCD_PRINT("-");
+            seriallcd.print("-");
           else
-            LCD_PRINT(" ");
+            seriallcd.print(" ");
         }
     }
   }
@@ -841,43 +1010,45 @@ void draw_status (int time,
     Relay *humidifier = find_relay (HUMIDIFIER);
     if (ventilation && ventilation->state == RELAY_ON)
       {
-        LCD_XY(3, 1);
-        LCD_PRINT(translate(S_V));
+        seriallcd.setCursor(3, 1);
+        seriallcd.print(translate(S_V));
       }
     else if (humidifier && humidifier->state == RELAY_ON)
       {
-        LCD_XY(3, 1);
-        LCD_PRINT(translate(S_H));
+        seriallcd.setCursor(3, 1);
+        seriallcd.print(translate(S_H));
       }
   }
+ 
+
 
   {
     Relay *water = find_relay (IRRIGATION);
     if (water)
     {
-      LCD_XY(3, 1);
+      seriallcd.setCursor(0,1);
       if (cached_water_level)
-        LCD_PRINT(translate(S_WA));
+        seriallcd.print("     "); /* LCD.print(translate(S_WA)); */
       else
-        LCD_BLINK(translate(S_WA));
+        seriallcd.print(translate(S_WA));
 
-      LCD_XY(0, 1);
+      seriallcd.setCursor(0,1);
       switch (water->state)
         {
           case RELAY_ON:
-            LCD_PRINT(translate(S_PU));
+            seriallcd.print(translate(S_PU));
             break;
           case RELAY_OFF:
-            LCD_PRINT("  ");
+            seriallcd.print("  ");
             break;
           case RELAY_WAITING:
-            LCD_BLINK(translate(S_PU));
+            seriallcd.print(translate(S_PU));
             break;
         }
     }
   }
 
-  LCD_XY(0, 0);
+  seriallcd.setCursor(0,0);
   {
     print_time (time);
   }
@@ -886,20 +1057,20 @@ void draw_status (int time,
 int logno = 0;
 void draw_log (void)
 {
-  LCD_XY(0,0);
+  seriallcd.setCursor(0,0);
   print_time(logno*LOG_INTERVAL);
-  LCD_PRINT (" ");
-  LCD_PRINTN (datalog[logno].moisture);
-  LCD_PRINT ("%  ");
+  seriallcd.print(" ");
+  seriallcd.print(datalog[logno].moisture);
+  seriallcd.print("%  ");
 
-  LCD_XY(0,1);
+  seriallcd.setCursor(0,1);
   print_time((logno+1)*LOG_INTERVAL);
-  LCD_PRINT (" ");
+  seriallcd.print(" ");
   if (logno+1 >= 24 * 60 / LOG_INTERVAL)
-  LCD_PRINTN (datalog[0].moisture);
+  seriallcd.print(datalog[0].moisture);
   else
-  LCD_PRINTN (datalog[logno+1].moisture);
-  LCD_PRINT ("%  ");
+  seriallcd.print(datalog[logno+1].moisture);
+  seriallcd.print("%  ");
 
 }
 
@@ -924,7 +1095,7 @@ void end_editing (void)
 }
 
 void print_time (int minutes_since_midnight)
-{  
+{ 
   while (minutes_since_midnight < 0)
     minutes_since_midnight += MIDNIGHT;
   {
@@ -936,35 +1107,35 @@ void print_time (int minutes_since_midnight)
     if (is_editing == 1)
     {
       if (hours < 10)
-        LCD_BLINK(" ");
-      LCD_BLINKN(hours);
-      LCD_PRINT(":");
+      seriallcd.print(" ");
+      seriallcd.print(hours);
+      seriallcd.print(":");
       if (minutes < 10)
-        LCD_PRINT("0");
-      LCD_PRINTN(minutes);
+      seriallcd.print("0");
+      seriallcd.print(minutes);
     }
     else if (is_editing == 2)
     {
       if (hours < 10)
-        LCD_BLINK(" ");
-      LCD_PRINTN(hours);
-      LCD_PRINT(":");
+        seriallcd.print(" ");
+      seriallcd.print(hours);
+      seriallcd.print(":");
       if (minutes < 10)
-        LCD_BLINK("0");
-      LCD_BLINKN(minutes);
+        seriallcd.print("0");
+      seriallcd.print(minutes);
     }
     else
     {
       if (hours < 10)
-        LCD_PRINT(" ");
-      LCD_PRINTN(hours);
+        seriallcd.print(" ");
+      seriallcd.print(hours);
       if (menu == main_menu)
-        LCD_BLINK(":");
+        seriallcd.print(":");
       else
-        LCD_PRINT(":");
+        seriallcd.print(":");
       if (minutes < 10)
-        LCD_PRINT("0");
-      LCD_PRINTN(minutes);
+        seriallcd.print("0");
+      seriallcd.print(minutes);
     }
   }
 }
@@ -977,10 +1148,10 @@ void draw_debug (void)
 
   for (pos = 0; pos < 300; pos ++)
     {
-      LCD_XY(u,v);
-      LCD_PRINTN(pos);
-      LCD_PRINT(":");
-      LCD_PRINTN(EEPROM_read(pos));
+      setCursor(u,v);
+      seriallcd.print(pos);
+      seriallcd.print(":");
+      seriallcd.print(EEPROM_read(pos));
       u += 7;
       if (u > 70)
         {
@@ -989,27 +1160,27 @@ void draw_debug (void)
         }
     }
 
-  LCD_XY(-6,-2);
-  LCD_PRINT("Relay 1: ");
+  setCursor(-6,-2);
+  seriallcd.print("Relay 1: ");
   if (relay[0].state == RELAY_ON)
-    LCD_PRINT("ON  ");
+    seriallcd.print("ON  ");
   else if (relay[0].state == RELAY_WAITING)
-    LCD_PRINT("WAIT");
+    seriallcd.print("WAIT");
   else
-    LCD_PRINT("OFF ");
+    seriallcd.print("OFF ");
 
-  LCD_XY(9,-2);
-  LCD_PRINT("Relay 2: ");
+  setCursor(9,-2);
+  seriallcd.print("Relay 2: ");
   if (relay[1].state == RELAY_ON)
-    LCD_PRINT("ON ");
+    seriallcd.print("ON ");
   else
-    LCD_PRINT("OFF");
-  LCD_XY(24,-2);
-  LCD_PRINT("Relay 3: ");
+    seriallcd.print("OFF");
+  setCursor(24,-2);
+  seriallcd.print("Relay 3: ");
   if (relay[2].state == RELAY_ON)
-    LCD_PRINT("ON ");
+    seriallcd.print("ON ");
   else
-    LCD_PRINT("OFF");
+    seriallcd.print("OFF");
 #endif
 }
 
@@ -1022,43 +1193,43 @@ void draw_ui (void)
       message_ttl--;
       if (message_ttl>0)
         return;
-     LCD_CLEAR();
+     clearScreen();
     }
-  
+ 
 #if ARDUINO_MODE
 #else
-  LCD_XY(16,0);
-  LCD_PRINT("]");
-  LCD_XY(16,1);
-  LCD_PRINT("]");
+  setCursor(16,0);
+  seriallcd.print("]");
+  setCursor(16,1);
+  seriallcd.print("]");
 
-  LCD_XY(-1,0);
-  LCD_PRINT("[");
-  LCD_XY(-1,1);
-  LCD_PRINT("[");
+  setCursor(-1,0);
+  seriallcd.print("[");
+  setCursor(-1,1);
+  seriallcd.print("[");
 #endif
-  LCD_XY(0,0);
+  seriallcd.setCursor(0,0);
 
   switch (mi->type)
   {
     case STATUS:
       draw_status (get_minutes_since_midnight (), moisture_read(), cached_temperature, cached_humidity);
       draw_debug ();
-      LCD_FLUSH();
+      clearScreen();
       return;
-    
+   
     case LOG:
       draw_log ();
       draw_debug ();
-      LCD_FLUSH();
+      clearScreen();
       return;
 
     default:
 
-      LCD_PRINT (translate(mi->label));
-      LCD_XY(0,1);
+      seriallcd.print (translate(mi->label));
+      seriallcd.setCursor(0,1);
       if (mi->label2)
-        LCD_PRINT (translate(mi->label2));
+        seriallcd.print (translate(mi->label2));
 
       break;
   }
@@ -1081,12 +1252,12 @@ void draw_ui (void)
         break;
       case UPTIME:
         {
-          LCD_XY(0,1);
-          LCD_PRINTN((float)ticks);
+          seriallcd.setCursor(0,1);
+          seriallcd.print((float)ticks);
         }
         break;
       case TEXT:
-        LCD_PRINT((char *)mi->data);
+        seriallcd.print((char *)mi->data);
         break;
       case NUMBER:
         if (is_editing)
@@ -1099,60 +1270,63 @@ void draw_ui (void)
 
           if (is_editing == 1)
           {
-            LCD_BLINKN(tens);
-            LCD_PRINTN(ones);
+            seriallcd.print(tens);
+            seriallcd.print(ones);
           }
           else if (is_editing == 2)
           {
-            LCD_PRINTN(tens);
-            LCD_BLINKN(ones);
+            seriallcd.print(tens);
+            seriallcd.print(ones);
           }
           else
-            LCD_PRINTN( (*(float*)(mi->data)) );
+            seriallcd.print( (*(float*)(mi->data)) );
         }
         else
-          LCD_PRINTN( (*(float*)(mi->data)) );
+          seriallcd.print( (*(float*)(mi->data)) );
         break;
 
       case SOIL_CALIBRATE:
         if (is_editing)
-          LCD_BLINKN( (*(float*)(mi->data)) );
+          seriallcd.print( (*(float*)(mi->data)) );
         else
-          LCD_PRINTN( (*(float*)(mi->data)) );
-        LCD_PRINT("s:");
-        LCD_PRINTN(cached_moisture);
-        LCD_PRINT("v:");
-        LCD_PRINTN(moisture_read());
+          seriallcd.print( (*(float*)(mi->data)) );
+        /*seriallcd.print("s ");*/
+        seriallcd.print(" -ENTER- ");
+        seriallcd.print(cached_moisture);
+        seriallcd.print("   ");
+        /*seriallcd.print("v ");*/
+        /*seriallcd.print(moisture_read());*/
+       
         break;
 
       case ROLE:
         {
           int role = (*((int*)(mi->data)));
-          LCD_PRINT("[");
+          seriallcd.print("[");
           if (is_editing)
-            LCD_BLINK(translate(roles[role]));
+            seriallcd.print(translate(roles[role]));
           else
-            LCD_PRINT(translate(roles[role]));
-          LCD_PRINT("]");
+            seriallcd.print(translate(roles[role]));
+          seriallcd.print("]");
         }
         break;
 
       case LANGUAGE:
         {
-          LCD_PRINT("[");
+          seriallcd.print("[");
           if (is_editing)
-            LCD_BLINK(translate(S_ENGLISH));
+            seriallcd.print(translate(S_ENGLISH));
           else
-            LCD_PRINT(translate(S_ENGLISH));
-          LCD_PRINT("]");
+            seriallcd.print(translate(S_ENGLISH));
+          seriallcd.print("]");
         }
         break;
 
       case ONOFF:
         if(*((int*)(mi->data)))
-          LCD_PRINT(translate(S_ENABLED));
+          seriallcd.print(translate(S_ENABLED));
         else
-          LCD_PRINT(translate(S_DISABLED));
+          seriallcd.print(translate(S_DISABLED));
         break;
 
       default:
@@ -1161,7 +1335,7 @@ void draw_ui (void)
 
   draw_debug ();
 
-  LCD_FLUSH ();
+  clearScreen();
 }
 
 void reset_lights (void)
@@ -1250,13 +1424,13 @@ void editing_handle_events (int event)
         /* store back edited tim */
         offset = (minutes - (get_minutes_since_midnight () - offset));
       }
-      end_editing ();
+      end_editing();
       return;
     }
   }
   else if (event == BUTTON_ENTER)
   {
-    end_editing ();
+    end_editing();
   }
 
   if (mi->data || mi->type == LOG)
@@ -1271,13 +1445,13 @@ void editing_handle_events (int event)
               (*val) -= 1;
               if (*val < 0)
                 *val = roles_c - 1;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case BUTTON_DOWN:
               (*val) += 1;
               if ((*val) >= roles_c)
                 *val = 0;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case IDLE:
             case TIMEOUT:
@@ -1295,13 +1469,13 @@ void editing_handle_events (int event)
               logno--;
               if (logno<0)
                 logno = (24*60/LOG_INTERVAL)-1;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case BUTTON_DOWN:
               logno++;
               if (logno >= 24 * 60 / LOG_INTERVAL)
                 logno = 0;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case IDLE:
             case TIMEOUT:
@@ -1320,13 +1494,13 @@ void editing_handle_events (int event)
               (*val) -= 1;
               if (*val < 0)
                 *val = roles_c - 1;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case BUTTON_DOWN:
               (*val) += 1;
               if ((*val) >= MAX_LANGUAGE)
                 *val = 0;
-              LCD_CLEAR ();
+              clearScreen();
               break;
             case IDLE:
             case TIMEOUT:
@@ -1376,7 +1550,7 @@ void editing_handle_events (int event)
                 (*val) += 60;
               else
                 (*val) += 1;
-                
+               
                if (*val > MIDNIGHT)
                  *val = *val - MIDNIGHT;
               break;
@@ -1420,12 +1594,12 @@ void handle_events (void)
 
   if (event != IDLE)
     idle_count = 0;
-  
+ 
   switch (event)
     {
       case BUTTON_ENTER:
 #if ARDUINO_MODE
-        slcd.write(SLCD_BACKLIGHT_ON);
+        seriallcd.print("");
 #endif
         menu_enter ();
         break;
@@ -1435,18 +1609,18 @@ void handle_events (void)
           while (menu[menu_active+1].label)
             menu_active++;
 #if ARDUINO_MODE
-        slcd.write(SLCD_BACKLIGHT_ON);
+        seriallcd.print("");
 #endif
-        LCD_CLEAR();
+        clearScreen();
         break;
       case BUTTON_DOWN:
         menu_active ++;
         if (menu[menu_active].label==0)
           menu_active = 0;
 #if ARDUINO_MODE
-        slcd.write(SLCD_BACKLIGHT_ON);
+        seriallcd.print("");
 #endif
-        LCD_CLEAR();
+        clearScreen();
         break;
       case IDLE:
         idle_count ++;
@@ -1458,7 +1632,7 @@ void handle_events (void)
         /* fallthrough */
       case TIMEOUT:
 #if ARDUINO_MODE
-        slcd.write(SLCD_BACKLIGHT_OFF);
+        seriallcd.print("OFF");
 #endif
         return_home ();
         break;
@@ -1726,7 +1900,7 @@ void store_log (void)
     logno = 0;
 //  datalog[logno].temperature = cached_temperature;
 //  datalog[logno].humidity = cached_humidity;
-  datalog[logno].moisture = moisture_read();//cached_moisture * 100 / moisture_calib;
+//  datalog[logno].moisture = moisture_read();//cached_moisture * 100 / moisture_calib;
 }
 
 void loop (void)
@@ -1741,6 +1915,8 @@ void loop (void)
   update_relay_state ();
 
   handle_events (); /* handle user events, if any */
+
+
   draw_ui ();       /* draw ui in current state*/
 
   /* XXX
@@ -1760,6 +1936,7 @@ void loop (void)
 
 void setup (void)
 {
+ 
   reset_settings (config);
   if (load_settings (config) != 0)
     {
@@ -1780,7 +1957,7 @@ void read_sensors (void)
   float air_data[2];
 
   readingno++;
-  
+ 
   if (readingno % 4 == 0)
     {
       aths_read_data (&cached_humidity, &cached_temperature);
@@ -1810,7 +1987,7 @@ void read_sensors (void)
 
   if (ventilation && ventilation->state == RELAY_ON)
     cached_humidity -=2;
-  else 
+  else
     cached_humidity += ticks % 2;
 
   if (cached_humidity > 100)
@@ -1826,4 +2003,4 @@ int main (int argc, char **argv)
   return 0;
 }
 
-#endif
+#endif 
